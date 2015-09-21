@@ -37,6 +37,7 @@
 %endif
 
 %define __provides_exclude_from ^%{_libexecdir}/droid-hybris/.*$
+%define __provides_exclude_from ^%{_libdir}/droid-devel/.*$
 %define android_root .
 %define dhd_path rpm/dhd
 
