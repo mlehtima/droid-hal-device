@@ -341,15 +341,17 @@ echo Verifying kernel config
 hybris/mer-kernel-check/mer_verify_kernel_config \
     %{android_root}/out/target/product/%{device}/obj/*/.config
 
+
+ANDROID_VERSION_MAJOR=$(awk '/PLATFORM_VERSION[A-Z0-9.]* := ([0-9.]+)/ { print $3; }' \
+                          < %{android_root}/build/core/version_defaults.mk \
+                          | awk -F'.' '{print $1}')
+
 # Check if local overrides for tool mk files exist, otherwise dhd defaults are used
 if test -f rpm/helpers/mkbootimg.mk; then
     export MKBOOTIMG_MK=$(pwd)/rpm/helpers/mkbootimg.mk
 else
     # Starting from Android 7 mkbootimg is a python program so build only for older Android versions
-    if [ $(grep 'PLATFORM_VERSION := ' \
-                          %{android_root}/build/core/version_defaults.mk \
-                          | awk '{print $3}' \
-                          | awk -F'.' '{print $1}') -lt "7" ]; then
+    if [ $ANDROID_VERSION_MAJOR -lt "7" ]; then
         export MKBOOTIMG_MK=$(pwd)/rpm/dhd/helpers/mkbootimg.mk
     fi
 fi
@@ -364,6 +366,15 @@ fi
 
 echo Building local tools
 ANDROID_ROOT=$(readlink -e %{android_root})
+
+if [ $ANDROID_VERSION_MAJOR -ge "8" ]; then
+    $ANDROID_ROOT/build/make/tools/fs_config/fs_config_generator.py aidarray \
+        $ANDROID_ROOT/system/core/libcutils/include/private/android_filesystem_config.h \
+        > generated_android_filesystem_config.h
+else
+    echo "#include <private/android_filesystem_config.h>;" > generated_android_filesystem_config.h
+fi
+
 (cd %{dhd_path}/helpers; make ANDROID_ROOT=$ANDROID_ROOT)
 
 echo Building uid scripts
@@ -412,9 +423,8 @@ EOF
 ################
 %install
 
-ANDROID_VERSION_MAJOR=$(grep 'PLATFORM_VERSION := ' \
-                          %{android_root}/build/core/version_defaults.mk \
-                          | awk '{print $3}' \
+ANDROID_VERSION_MAJOR=$(awk '/PLATFORM_VERSION[A-Z0-9.]* := ([0-9.]+)/ { print $3; }' \
+                          < %{android_root}/build/core/version_defaults.mk \
                           | awk -F'.' '{print $1}')
 
 echo install $(cat tmp/units/all-units.txt)
